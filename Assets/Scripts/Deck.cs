@@ -11,7 +11,13 @@ public class Deck : MonoBehaviour
     public Button playAgainButton;
     public Text finalMessage;
     public Text probMessage;
+    public Text playerPointsMessage;
+    public Text dealerPointsMessage;
+    public Text creditMessage;
+    public Dropdown betDropdown;
 
+    private int credits = 1000;
+    private int currentBet = 0;
     public int[] values = new int[52];
     int cardIndex = 0;    
        
@@ -89,12 +95,49 @@ public class Deck : MonoBehaviour
 
     private void CalculateProbabilities()
     {
-        /*TODO:
-         * Calcular las probabilidades de:
-         * - Teniendo la carta oculta, probabilidad de que el dealer tenga más puntuación que el jugador
-         * - Probabilidad de que el jugador obtenga entre un 17 y un 21 si pide una carta
-         * - Probabilidad de que el jugador obtenga más de 21 si pide una carta          
-         */
+        int playerPoints = player.GetComponent<CardHand>().points;
+        int dealerPoints = dealer.GetComponent<CardHand>().points;
+        int remaining = 52 - cardIndex; // Cartas que quedan en el mazo
+
+        if (remaining <= 0)
+        {
+            probMessage.text = "Sin cartas restantes.";
+            return;
+        }
+
+        int dealerBeats = 0;   // Dealer gana con su carta oculta
+        int between1721 = 0;   // Jugador obtiene 17-21 pidiendo carta
+        int bust = 0;          // Jugador se pasa de 21 pidiendo carta
+
+        for (int i = cardIndex; i < 52; i++)
+        {
+            int cardValue = values[i];
+
+            // Probabilidad 1: ¿El dealer ya supera al jugador con su mano actual?
+            // (la carta oculta ya está contada en dealerPoints)
+            if (dealerPoints > playerPoints && dealerPoints <= 21)
+                dealerBeats++;
+
+            // Probabilidad 2 y 3: ¿Qué pasa si el jugador pide esta carta?
+            int newPlayerPoints = playerPoints + cardValue;
+            // Ajuste del As: si se pasa y tiene un As contado como 11, lo cuenta como 1
+            if (newPlayerPoints > 21 && cardValue == 11)
+                newPlayerPoints -= 10;
+
+            if (newPlayerPoints >= 17 && newPlayerPoints <= 21)
+                between1721++;
+            else if (newPlayerPoints > 21)
+                bust++;
+        }
+
+        float pDealerBeats = dealerPoints > playerPoints && dealerPoints <= 21 ? 100f : 0f;
+        float pBetween1721 = (float)between1721 / remaining * 100f;
+        float pBust = (float)bust / remaining * 100f;
+
+        probMessage.text =
+            $"Dealer gana: {pDealerBeats:F1}%\n" +
+            $"Jugador 17-21 si pide: {pBetween1721:F1}%\n" +
+            $"Jugador se pasa si pide: {pBust:F1}%";
     }
 
     void PushDealer()
