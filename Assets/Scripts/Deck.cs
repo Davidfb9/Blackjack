@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using TMPro;
+using UnityEngine;
 using UnityEngine.UI;
 
 public class Deck : MonoBehaviour
@@ -14,7 +15,8 @@ public class Deck : MonoBehaviour
     public Text playerPointsMessage;
     public Text dealerPointsMessage;
     public Text creditMessage;
-    public Dropdown betDropdown;
+    public TMP_Dropdown betDropdown;
+    private bool dealerRevealed = false;
 
     private int credits = 1000;
     private int currentBet = 0;
@@ -29,8 +31,10 @@ public class Deck : MonoBehaviour
 
     private void Start()
     {
+        betDropdown.interactable = true;
+        creditMessage.text = $"Créditos: {credits}€";
         ShuffleCards();
-        StartGame();        
+        StartGame();
     }
 
     private void InitCardValues()
@@ -67,29 +71,38 @@ public class Deck : MonoBehaviour
 
     void StartGame()
     {
+        // Quitamos la lectura de apuesta de aquí, solo repartimos
         for (int i = 0; i < 2; i++)
         {
             PushPlayer();
             PushDealer();
         }
 
-        // Comprobamos Blackjack después de repartir las 2 cartas iniciales
         bool playerBlackjack = player.GetComponent<CardHand>().points == 21;
         bool dealerBlackjack = dealer.GetComponent<CardHand>().points == 21;
 
         if (playerBlackjack || dealerBlackjack)
         {
-            dealer.GetComponent<CardHand>().InitialToggle(); // Revelamos la carta oculta del dealer
-
+            // Leer apuesta aquí porque la partida termina sin pasar por Hit/Stand
+            currentBet = int.Parse(betDropdown.options[betDropdown.value].text);
+            betDropdown.interactable = false;
+            dealer.GetComponent<CardHand>().InitialToggle();
             hitButton.interactable = false;
             stickButton.interactable = false;
 
             if (playerBlackjack && dealerBlackjack)
                 finalMessage.text = "¡Empate! Ambos tienen Blackjack.";
             else if (playerBlackjack)
-                finalMessage.text = "¡Blackjack! ¡Ganaste!";
+            {
+                credits += currentBet;
+                finalMessage.text = $"¡Blackjack! ¡Ganaste {currentBet}€!";
+            }
             else
-                finalMessage.text = "¡Blackjack del Dealer! Perdiste.";
+            {
+                credits -= currentBet;
+                finalMessage.text = $"¡Blackjack del Dealer! Perdiste {currentBet}€.";
+            }
+            creditMessage.text = $"Créditos: {credits}€";
         }
     }
 
@@ -142,79 +155,111 @@ public class Deck : MonoBehaviour
 
     void PushDealer()
     {
-        /*TODO:
-         * Dependiendo de cómo se implemente ShuffleCards, es posible que haya que cambiar el índice.
-         */
-        dealer.GetComponent<CardHand>().Push(faces[cardIndex],values[cardIndex]);
-        cardIndex++;        
+        dealer.GetComponent<CardHand>().Push(faces[cardIndex], values[cardIndex]);
+        cardIndex++;
+
+        if (dealerRevealed)
+            dealerPointsMessage.text = $"Puntos Dealer: {dealer.GetComponent<CardHand>().points}";
     }
 
     void PushPlayer()
     {
-        /*TODO:
-         * Dependiendo de cómo se implemente ShuffleCards, es posible que haya que cambiar el índice.
-         */
-        player.GetComponent<CardHand>().Push(faces[cardIndex], values[cardIndex]/*,cardCopy*/);
+        player.GetComponent<CardHand>().Push(faces[cardIndex], values[cardIndex]);
         cardIndex++;
+        playerPointsMessage.text = $"Puntos Jugador: {player.GetComponent<CardHand>().points}";
         CalculateProbabilities();
     }
 
     public void Hit()
     {
-        // Si es la mano inicial (solo 2 cartas), volteamos la carta oculta del dealer
         if (player.GetComponent<CardHand>().cards.Count == 2)
+        {
+            currentBet = int.Parse(betDropdown.options[betDropdown.value].text);
+            betDropdown.interactable = false;
+            dealerRevealed = true;
             dealer.GetComponent<CardHand>().InitialToggle();
+            dealerPointsMessage.text = $"Puntos Dealer: {dealer.GetComponent<CardHand>().points}";
+        }
 
-        // Repartimos carta al jugador
         PushPlayer();
 
-        // Comprobamos si el jugador se ha pasado de 21
         if (player.GetComponent<CardHand>().points > 21)
         {
-            finalMessage.text = "¡Te has pasado! El Dealer gana.";
+            credits -= currentBet;
+            finalMessage.text = $"¡Te has pasado! Perdiste {currentBet}€.";
             hitButton.interactable = false;
             stickButton.interactable = false;
+            creditMessage.text = $"Créditos: {credits}€";
         }
     }
 
     public void Stand()
     {
-        // Si es la mano inicial, volteamos la carta oculta del dealer
-        if (player.GetComponent<CardHand>().cards.Count == 2)
-            dealer.GetComponent<CardHand>().InitialToggle();
 
-        // El dealer pide cartas mientras tenga 16 o menos
+        currentBet = int.Parse(betDropdown.options[betDropdown.value].text);
+        betDropdown.interactable = false;
+
+        if (player.GetComponent<CardHand>().cards.Count == 2) {
+            dealerRevealed = true;
+            dealer.GetComponent<CardHand>().InitialToggle();
+            dealerPointsMessage.text = $"Puntos Dealer: {dealer.GetComponent<CardHand>().points}";
+        }
+
+
         while (dealer.GetComponent<CardHand>().points <= 16)
             PushDealer();
 
-        // Desactivamos los botones
         hitButton.interactable = false;
         stickButton.interactable = false;
 
-        // Comparamos puntuaciones y mostramos resultado
         int playerPoints = player.GetComponent<CardHand>().points;
         int dealerPoints = dealer.GetComponent<CardHand>().points;
 
         if (dealerPoints > 21)
-            finalMessage.text = "¡El Dealer se ha pasado! ¡Ganaste!";
+        {
+            credits += currentBet;
+            finalMessage.text = $"¡El Dealer se ha pasado! Ganaste {currentBet}€.";
+        }
         else if (playerPoints > dealerPoints)
-            finalMessage.text = "¡Ganaste!";
+        {
+            credits += currentBet;
+            finalMessage.text = $"¡Ganaste {currentBet}€!";
+        }
         else if (playerPoints < dealerPoints)
-            finalMessage.text = "¡El Dealer gana!";
+        {
+            credits -= currentBet;
+            finalMessage.text = $"¡El Dealer gana! Perdiste {currentBet}€.";
+        }
         else
+        {
             finalMessage.text = "¡Empate!";
+            // En empate no se pierde ni gana
+        }
+
+        creditMessage.text = $"Créditos: {credits}€";
     }
 
     public void PlayAgain()
     {
+        if (credits <= 0)
+        {
+            finalMessage.text = "¡Sin créditos! Reinicia el juego.";
+            return;
+        }
+
+        dealerRevealed = false;
+        dealerPointsMessage.text = "Puntos Dealer: ?";
         hitButton.interactable = true;
         stickButton.interactable = true;
         finalMessage.text = "";
+        betDropdown.interactable = true;
+
         player.GetComponent<CardHand>().Clear();
-        dealer.GetComponent<CardHand>().Clear();          
+        dealer.GetComponent<CardHand>().Clear();
+        playerPointsMessage.text = "";
         cardIndex = 0;
         ShuffleCards();
         StartGame();
     }
-    
+
 }
