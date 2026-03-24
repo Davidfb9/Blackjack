@@ -29,20 +29,34 @@ public class Deck : MonoBehaviour
 
     private void InitCardValues()
     {
-        /*TODO:
-         * Asignar un valor a cada una de las 52 cartas del atributo "values".
-         * En principio, la posición de cada valor se deberá corresponder con la posición de faces. 
-         * Por ejemplo, si en faces[1] hay un 2 de corazones, en values[1] debería haber un 2.
-         */
+        // Patrón de valores por palo: As=11, 2-10 su valor, J/Q/K=10
+        int[] pattern = { 11, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10 };
+
+        for (int suit = 0; suit < 4; suit++)
+        {
+            for (int rank = 0; rank < 13; rank++)
+            {
+                values[suit * 13 + rank] = pattern[rank];
+            }
+        }
     }
 
     private void ShuffleCards()
     {
-        /*TODO:
-         * Barajar las cartas aleatoriamente.
-         * El método Random.Range(0,n), devuelve un valor entre 0 y n-1
-         * Si lo necesitas, puedes definir nuevos arrays.
-         */       
+        for (int i = 51; i > 0; i--)
+        {
+            int j = Random.Range(0, i + 1);
+
+            // Intercambiamos faces[i] con faces[j]
+            Sprite tempSprite = faces[i];
+            faces[i] = faces[j];
+            faces[j] = tempSprite;
+
+            // Intercambiamos values[i] con values[j] de forma coordinada
+            int tempValue = values[i];
+            values[i] = values[j];
+            values[j] = tempValue;
+        }
     }
 
     void StartGame()
@@ -51,9 +65,25 @@ public class Deck : MonoBehaviour
         {
             PushPlayer();
             PushDealer();
-            /*TODO:
-             * Si alguno de los dos obtiene Blackjack, termina el juego y mostramos mensaje
-             */
+        }
+
+        // Comprobamos Blackjack después de repartir las 2 cartas iniciales
+        bool playerBlackjack = player.GetComponent<CardHand>().points == 21;
+        bool dealerBlackjack = dealer.GetComponent<CardHand>().points == 21;
+
+        if (playerBlackjack || dealerBlackjack)
+        {
+            dealer.GetComponent<CardHand>().InitialToggle(); // Revelamos la carta oculta del dealer
+
+            hitButton.interactable = false;
+            stickButton.interactable = false;
+
+            if (playerBlackjack && dealerBlackjack)
+                finalMessage.text = "¡Empate! Ambos tienen Blackjack.";
+            else if (playerBlackjack)
+                finalMessage.text = "¡Blackjack! ¡Ganaste!";
+            else
+                finalMessage.text = "¡Blackjack del Dealer! Perdiste.";
         }
     }
 
@@ -84,35 +114,52 @@ public class Deck : MonoBehaviour
         player.GetComponent<CardHand>().Push(faces[cardIndex], values[cardIndex]/*,cardCopy*/);
         cardIndex++;
         CalculateProbabilities();
-    }       
+    }
 
     public void Hit()
     {
-        /*TODO: 
-         * Si estamos en la mano inicial, debemos voltear la primera carta del dealer.
-         */
-        
-        //Repartimos carta al jugador
+        // Si es la mano inicial (solo 2 cartas), volteamos la carta oculta del dealer
+        if (player.GetComponent<CardHand>().cards.Count == 2)
+            dealer.GetComponent<CardHand>().InitialToggle();
+
+        // Repartimos carta al jugador
         PushPlayer();
 
-        /*TODO:
-         * Comprobamos si el jugador ya ha perdido y mostramos mensaje
-         */      
-
+        // Comprobamos si el jugador se ha pasado de 21
+        if (player.GetComponent<CardHand>().points > 21)
+        {
+            finalMessage.text = "¡Te has pasado! El Dealer gana.";
+            hitButton.interactable = false;
+            stickButton.interactable = false;
+        }
     }
 
     public void Stand()
     {
-        /*TODO: 
-         * Si estamos en la mano inicial, debemos voltear la primera carta del dealer.
-         */
+        // Si es la mano inicial, volteamos la carta oculta del dealer
+        if (player.GetComponent<CardHand>().cards.Count == 2)
+            dealer.GetComponent<CardHand>().InitialToggle();
 
-        /*TODO:
-         * Repartimos cartas al dealer si tiene 16 puntos o menos
-         * El dealer se planta al obtener 17 puntos o más
-         * Mostramos el mensaje del que ha ganado
-         */                
-         
+        // El dealer pide cartas mientras tenga 16 o menos
+        while (dealer.GetComponent<CardHand>().points <= 16)
+            PushDealer();
+
+        // Desactivamos los botones
+        hitButton.interactable = false;
+        stickButton.interactable = false;
+
+        // Comparamos puntuaciones y mostramos resultado
+        int playerPoints = player.GetComponent<CardHand>().points;
+        int dealerPoints = dealer.GetComponent<CardHand>().points;
+
+        if (dealerPoints > 21)
+            finalMessage.text = "¡El Dealer se ha pasado! ¡Ganaste!";
+        else if (playerPoints > dealerPoints)
+            finalMessage.text = "¡Ganaste!";
+        else if (playerPoints < dealerPoints)
+            finalMessage.text = "¡El Dealer gana!";
+        else
+            finalMessage.text = "¡Empate!";
     }
 
     public void PlayAgain()
